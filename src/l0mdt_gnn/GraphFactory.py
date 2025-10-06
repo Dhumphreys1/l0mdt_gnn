@@ -33,25 +33,28 @@ def event_to_graph(event):
     edge_indices = [[], []]
     edge_attributes = []
     for j in range(len(pos_list)):
-        if i == j:
-            continue
-        distance_squared = (pos_list[i][0] - pos_list[j][0]) ** 2 + (pos_list[i][1] - pos_list[j][1]) ** 2
-        if distance_squared <= multi_layer_spacing ** 2:
-            edge_indices[0].append(i)
-            edge_indices[1].append(j)
+        for k in range(len(pos_list)):
+            if k == j:
+                continue
+            distance_squared = (pos_list[k][0] - pos_list[j][0]) ** 2 + (pos_list[k][1] - pos_list[j][1]) ** 2
+            if distance_squared <= multi_layer_spacing ** 2:
+                edge_indices[0].append(k)
+                edge_indices[1].append(j)
 
-            diff_in_layer = abs(layer_list[i] - layer_list[j])
-            diff_in_number = abs(number_list[i] - number_list[j])
-            x_diff = abs(pos_list[i][0] - pos_list[j][0])
-            cosine = x_diff / np.sqrt(distance_squared)
-            edge_attributes.append([diff_in_layer, diff_in_number, cosine])
+                diff_in_layer = abs(layer_list[k] - layer_list[j])
+                diff_in_number = abs(number_list[k] - number_list[j])
+                x_diff = abs(pos_list[k][0] - pos_list[j][0])
+                cosine = x_diff / np.sqrt(distance_squared)
+                edge_attributes.append([diff_in_layer, diff_in_number, cosine])
 
     if edge_indices[0]:
         edge_index = torch.tensor(edge_indices, dtype=torch.long)
+        edge_attr = torch.tensor(edge_attributes, dtype=torch.float)
     else:
         edge_index = torch.empty((2, 0), dtype=torch.long)
+        edge_attr = torch.empty((0, 3), dtype=torch.float)
     
-    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attributes, pos=pos, y=y)
+    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, pos=pos, y=y)
     return data
 
 event_to_graph(graph_inputs[0])
