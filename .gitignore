@@ -11,7 +11,7 @@ uv.lock
 
 # Notebooks
 *.ipynb_checkpoints
-*.ipynb
+*/src/.ipynb
 
 # Logs
 *.log

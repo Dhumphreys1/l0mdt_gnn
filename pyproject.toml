@@ -18,6 +18,12 @@ dependencies = [
     "torch_geometric"
 ]
 
+[dependency-groups]
+dev = [
+    "ipykernel",
+    "pre-commit"
+    ]
+
 [project.scripts]
 l0mdt-gnn = "l0mdt_gnn:main"
 

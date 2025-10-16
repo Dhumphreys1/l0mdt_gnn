@@ -5,23 +5,23 @@ from torch_geometric.data import Data
 
 
 @njit(nopython=True)
-def computeEdges(row_arr, col_arr, eta_array, multilayer_arr, time_arr, charge_arr, adjacent_dist2 = 9, multilayer_scaler = 101):
+def computeEdges(tube_number_arr, tube_layer_arr, eta_array, multilayer_arr, time_arr, charge_arr, adjacent_dist2 = 9, multilayer_scaler = 101):
     """
     Compute edges for a given set of hits.
     Edges are created between hits that are within a certain distance in the xy-plane,
     x and y have been discretized to row and column format.
     Inputs:
     -----------
-    row_arr = x coordinates of hits
-    layer_arr = y coordinates of hits
+    tube_number_arr = x coordinates of hits
+    tube_layer_arr = y coordinates of hits
     eta_arry = eta station id
     multilayer_arr = multilayer of hit
     time_arr = time of hit
     charge_arr = charge of hit
     multilayer_scaler = distance threshold for hits in different multilayers
     """
-    n_hits = len(row_arr)
-    max_edges = .5 * n_hits * (n_hits - 1)
+    n_hits = len(tube_number_arr)
+    max_edges = n_hits * (n_hits - 1) // 2
 
     src = np.empty(max_edges, dtype=np.int32)
     dst = np.empty(max_edges, dtype=np.int32)
@@ -34,31 +34,31 @@ def computeEdges(row_arr, col_arr, eta_array, multilayer_arr, time_arr, charge_a
     multilayer_dist2 = adjacent_dist2 + multilayer_scaler # ds^2 = drow^2 + dcol^2 + multilayer_scaler*dml^2 -> ds^2 = adjacent_dist2 + multilayer_scaler
     # scaler should be selected to be squared value to connect two layers in different multilayers accounting for angle. Roughly drow_max^2 + 1
     for i in range(n_hits):
-      rowi, coli = row_arr[i], col_arr[i]
+      coli, rowi = tube_number_arr[i], tube_layer_arr[i]
       for j in range(i + 1, n_hits):
 
-          rowj, colj = row_arr[j], col_arr[j]
-          dcol = col_arr[j] - col_arr[i]
-          drow = row_arr[j] - row_arr[i]
+          colj, rowj = tube_number_arr[j], tube_layer_arr[j]
+          dcol = tube_number_arr[j] - tube_number_arr[i]
+          drow = tube_layer_arr[j] - tube_layer_arr[i]
           deta = eta_array[j] - eta_array[i]
           dt = time_arr[j] - time_arr[i]
           dcharge = charge_arr[j] - charge_arr[i]
           dmultilayer = abs(multilayer_arr[j] - multilayer_arr[i])
 
           dist2 = dcol * dcol + drow * drow
-          if dmultilayer == 0:
-              max_dist2 = adjacent_dist2
-          else:
+          if dmultilayer == 1:
               max_dist2 = multilayer_dist2
+          else:
+              max_dist2 = adjacent_dist2
 
           if dist2 < max_dist2:
-            if (colj > coli) or ((colj == coli) and (rowj > rowi)):
+            if (rowj > rowi) or ((rowj == rowi) and (colj > coli)):
               src[edge_count] = i
               dst[edge_count] = j
               outgoing_edges[i] += 1
               incoming_edges[j] += 1
-              edge_attr[edge_count, 0] = drow
-              edge_attr[edge_count, 1] = dcol
+              edge_attr[edge_count, 0] = dcol
+              edge_attr[edge_count, 1] = drow
               edge_attr[edge_count, 2] = dist2
               edge_attr[edge_count, 3] = deta
               edge_attr[edge_count, 4] = dmultilayer
@@ -68,15 +68,14 @@ def computeEdges(row_arr, col_arr, eta_array, multilayer_arr, time_arr, charge_a
 
     return (src[:edge_count], dst[:edge_count], edge_attr[:edge_count], incoming_edges, outgoing_edges)
 
-#graph_inputs = np.load("/data/dhumphreys/L0MDT/for_julianne/graphInputs.npy", allow_pickle=True)
 class GraphBuilder():
-    # def __init__(config_file):
-    #     self.edge_vars = config["edge_features"]
-    #     self.node_vars = config["node_features"]
+    def __init__(self, adjacent_dist2=9, multilayer_scaler=101):
+        self.adjacent_dist2 = adjacent_dist2
+        self.multilayer_scaler = multilayer_scaler
 
     def eventToGraph(self, event):
-        adjacent_dist2 = 9
-        multilayer_scaler = 101
+        adjacent_dist2 = self.adjacent_dist2
+        multilayer_scaler = self.multilayer_scaler
         (src, dst, edge_attr, incoming_edges, outgoing_edges) = computeEdges(
             event['tube_number'],
             event['tube_layer'],
@@ -90,11 +89,11 @@ class GraphBuilder():
 
          # Skip events with no edges
         if len(src) == 0:
-            return None
+            return None, None
 
         # these need to be torch tensors
-        edge_index = torch.tensor([src, dst], dtype=torch.long)
-        edge_attr = torch.tensor(edge_attr, dtype=torch.float)
+        edge_index = torch.from_numpy(np.stack((src, dst), axis=0)).long()
+        edge_attr = torch.from_numpy(edge_attr).float()
         incoming_edges = torch.tensor(incoming_edges, dtype=torch.long)
         outgoing_edges = torch.tensor(outgoing_edges, dtype=torch.long)
 
@@ -110,60 +109,3 @@ class GraphBuilder():
         x = torch.tensor(features, dtype=torch.float)
         data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
         return data, event["event_number"][0]
-
-
-    def event_to_graph(self, event):
-        x_list = []
-        y_list = []
-        pos_list = []
-        layer_list = []
-        number_list = []
-        for i in range(len(event['multilayer'])):
-            multi_layer = event['multilayer'][i]
-            station_eta = event['station_eta'][i]
-            tube_layer = event['tube_layer'][i]
-            tube_number = event['tube_number'][i]
-            x_coord = event['x'][i]
-            y_coord = event['y'][i]
-            x_list.append([multi_layer, station_eta, tube_layer, tube_number, x_coord, y_coord])
-
-            truth = bool(event['truth'][i])
-            y_list.append(truth)
-
-            pos_list.append([x_coord, y_coord])
-            layer_list.append(tube_layer)
-            number_list.append(tube_number)
-        x = torch.tensor(x_list, dtype=torch.float)
-        y = torch.tensor(y_list, dtype=torch.bool)
-        pos = torch.tensor(pos_list, dtype=torch.long)
-
-        multi_layer_spacing = 245
-        edge_indices = [[], []]
-        edge_attributes = []
-        for j in range(len(pos_list)):
-            for k in range(len(pos_list)):
-                if k == j:
-                    continue
-                distance_squared = (pos_list[k][0] - pos_list[j][0]) ** 2 + (pos_list[k][1] - pos_list[j][1]) ** 2
-                if distance_squared <= multi_layer_spacing ** 2:
-                    edge_indices[0].append(k)
-                    edge_indices[1].append(j)
-
-                    diff_in_layer = abs(layer_list[k] - layer_list[j])
-                    diff_in_number = abs(number_list[k] - number_list[j])
-                    x_diff = abs(pos_list[k][0] - pos_list[j][0])
-                    cosine = x_diff / np.sqrt(distance_squared)
-                    edge_attributes.append([diff_in_layer, diff_in_number, cosine])
-
-        if edge_indices[0]:
-            edge_index = torch.tensor(edge_indices, dtype=torch.long)
-            edge_attr = torch.tensor(edge_attributes, dtype=torch.float)
-        else:
-            edge_index = torch.empty((2, 0), dtype=torch.long)
-            edge_attr = torch.empty((0, 3), dtype=torch.float)
-
-        data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, pos=pos, y=y)
-        return data
-
-
-

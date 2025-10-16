@@ -1,2 +1,5 @@
-def main() -> None:
-    print("Hello from l0mdt-gnn!")
+
+from .GraphFactory_Jit import GraphBuilder
+#from .GraphFactory import GraphBuilder --- IGNORE ---
+
+graphBuilder = GraphBuilder
