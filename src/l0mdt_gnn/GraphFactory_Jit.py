@@ -36,7 +36,6 @@ def computeEdges(tube_number_arr, tube_layer_arr, eta_array, multilayer_arr, tim
     for i in range(n_hits):
       coli, rowi = tube_number_arr[i], tube_layer_arr[i]
       for j in range(i + 1, n_hits):
-
           colj, rowj = tube_number_arr[j], tube_layer_arr[j]
           dcol = tube_number_arr[j] - tube_number_arr[i]
           drow = tube_layer_arr[j] - tube_layer_arr[i]
@@ -50,7 +49,6 @@ def computeEdges(tube_number_arr, tube_layer_arr, eta_array, multilayer_arr, tim
               max_dist2 = multilayer_dist2
           else:
               max_dist2 = adjacent_dist2
-
           if dist2 < max_dist2:
             if (rowj > rowi) or ((rowj == rowi) and (colj > coli)):
               src[edge_count] = i
@@ -107,5 +105,7 @@ class GraphBuilder():
                               outgoing_edges)).T
         y = torch.tensor(event['truth'].astype(np.bool_))
         x = torch.tensor(features, dtype=torch.float)
+        #graph_label = torch.tensor([1.0 if y.sum() >= 3 else 0.0], dtype=torch.float)
+        #data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y, graph_label=graph_label)
         data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
         return data, event["event_number"][0]

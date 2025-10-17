@@ -14,7 +14,9 @@ dependencies = [
     "numba",
     "argparse",
     "scipy",
+    "scikit-learn",
     "torch",
+    "torchinfo",
     "torch_geometric"
 ]
 

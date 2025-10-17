@@ -1,0 +1,7 @@
+input_dir: /data/dhumphreys/L0MDT/data_NGT/samples/npy/
+input_filename: station_2_inputs.npz
+multilayer_scaler: 51
+learning_rate: !!float 1e-5
+epochs: 30
+model_name: station_2
+model_dir_base: /home/dhumphreys/L0MDT/l0mdt_gnn/models/
